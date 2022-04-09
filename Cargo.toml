@@ -1,0 +1,22 @@
+[package]
+name = "ksec-rust"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+kube = { version = "0.70", features = ["runtime", "derive"] }
+k8s-openapi = { version = "0.14", features = ["v1_21"] }
+tokio = { version = "1", features = ["full"] }
+anyhow = { version = "1" }
+
+[profile.dev]
+opt-level = 0
+
+[profile.release]
+opt-level = 3
+strip = true
+lto = true
+codegen-units = 1
+panic = "abort"
