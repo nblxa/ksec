@@ -8,11 +8,15 @@ use clap_derive::ValueEnum;
 use clap_complete::generate;
 use clap_complete::shells::{Bash, Zsh};
 use std::io;
+use std::path::Path;
 
 /// Quickly get the value of a Kubernetes Secret.
 #[derive(Parser)]
 #[clap(author, version, about, long_about = None)]
 struct Cli {
+    /// Kubeconfig
+    #[clap(long)]
+    kubeconfig: Option<String>,
     /// Context
     #[clap(short, long)]
     context: Option<String>,
@@ -47,7 +51,11 @@ async fn main() -> anyhow::Result<()> {
         return Ok(());
     }
 
-    let kc: Kubeconfig = Kubeconfig::read()?;
+    let kc: Kubeconfig = match cli.kubeconfig {
+        Some(path) => Kubeconfig::read_from(Path::new(&path)).unwrap(),
+        None => Kubeconfig::from_env().unwrap().or_else(get_kubeconfig).unwrap(),
+    };
+
     if let Some(kco) = config_options_for_context(kc, cli.context) {
         let config = Config::from_kubeconfig(&kco).await?;
         let ns = cli.namespace.unwrap_or(config.default_namespace.clone());
@@ -91,4 +99,8 @@ fn print_value(bs: &ByteString) -> anyhow::Result<()> {
     let value = String::from_utf8(bs.0.clone())?;
     println!("{}", value);
     Ok(())
+}
+
+fn get_kubeconfig() -> Option<Kubeconfig> {
+    Some(Kubeconfig::read().unwrap())
 }
