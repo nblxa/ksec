@@ -3,7 +3,8 @@ use kube::{Client, Config};
 use kube::config::{Kubeconfig, KubeConfigOptions};
 use k8s_openapi::api::core::v1::Secret;
 use k8s_openapi::ByteString;
-use clap::{Parser, Command, CommandFactory, ArgEnum};
+use clap::{Parser, Command, CommandFactory};
+use clap_derive::ValueEnum;
 use clap_complete::generate;
 use clap_complete::shells::{Bash, Zsh};
 use std::io;
@@ -21,11 +22,11 @@ struct Cli {
     secret: String,
     key: Option<String>,
     /// Generate a completion script
-    #[clap(arg_enum)]
+    #[clap(long)]
     completion: Option<Shell>,
 }
 
-#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ArgEnum)]
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
 enum Shell {
     Bash,
     Zsh,
@@ -74,10 +75,11 @@ fn config_options_for_context(kc: Kubeconfig, context: Option<String>) -> Option
     if let Some(cc) = sought_context {
         for nc in kc.contexts {
             if nc.name == cc {
+                let cont = nc.context.unwrap();
                 return Some(KubeConfigOptions {
                     context: Some(nc.name),
-                    cluster: Some(nc.context.cluster),
-                    user: Some(nc.context.user),
+                    cluster: Some(cont.cluster),
+                    user: Some(cont.user),
                 });
             }
         }
