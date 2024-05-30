@@ -2,7 +2,7 @@
 
 Kubernetes Secrets at the end of your fingertips.
 
-```shell
-$ ksec mysql password
+```console
+foo@bar:~$ ksec mysql password
 XHEu4Wsncv!KtdjM
 ```

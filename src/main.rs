@@ -65,21 +65,30 @@ async fn main() -> anyhow::Result<()> {
         let ns = cli.namespace.unwrap_or(config.default_namespace.clone());
         let client = Client::try_from(config)?;
         let secrets: Api<Secret> = Api::namespaced(client, ns.as_str());
-        let s = secrets.get(&cli.secret).await?;
-        if let Some(data) = &s.data {
-            if let Some(k) = &cli.key {
-                if let Some(v) = data.get(k.as_str()) {
-                    return print_value(v);
-                }
+        let res = secrets.get(&cli.secret).await;
+        return match res {
+            Ok(s) => print_secret(s, &cli.key),
+            Err(e) => Err(anyhow::anyhow!(e.to_string())),
+        }
+    }
+    Ok(())
+}
+
+fn print_secret(s: Secret, opt_key: &Option<String>) -> anyhow::Result<()> {
+    if let Some(data) = &s.data {
+        if let Some(k) = opt_key {
+            return if let Some(v) = data.get(k) {
+                print_value(v)
             } else {
-                if let Some(v) = data.values().next() {
-                    return print_value(v);
-                }
+                Err(anyhow::anyhow!("No data found for key: {}", k))
+            }
+        } else {
+            if let Some(v) = data.values().next() {
+                return print_value(v);
             }
         }
     }
-
-    Ok(())
+    return Err(anyhow::anyhow!("No data found in secret"));
 }
 
 fn config_options_for_context(
