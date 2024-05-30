@@ -1,14 +1,15 @@
-use kube::api::Api;
-use kube::{Client, Config};
-use kube::config::{Kubeconfig, KubeConfigOptions};
-use k8s_openapi::api::core::v1::Secret;
-use k8s_openapi::ByteString;
-use clap::{Parser, Command, CommandFactory};
-use clap_derive::ValueEnum;
-use clap_complete::generate;
-use clap_complete::shells::{Bash, Zsh};
 use std::io;
 use std::path::Path;
+
+use clap::{Command, CommandFactory, Parser};
+use clap_complete::generate;
+use clap_complete::shells::{Bash, Zsh};
+use clap_derive::ValueEnum;
+use k8s_openapi::api::core::v1::Secret;
+use k8s_openapi::ByteString;
+use kube::api::Api;
+use kube::config::{KubeConfigOptions, Kubeconfig};
+use kube::{Client, Config};
 
 /// Quickly get the value of a Kubernetes Secret.
 #[derive(Parser)]
@@ -53,7 +54,10 @@ async fn main() -> anyhow::Result<()> {
 
     let kc: Kubeconfig = match cli.kubeconfig {
         Some(path) => Kubeconfig::read_from(Path::new(&path)).unwrap(),
-        None => Kubeconfig::from_env().unwrap().or_else(get_kubeconfig).unwrap(),
+        None => Kubeconfig::from_env()
+            .unwrap()
+            .or_else(get_kubeconfig)
+            .unwrap(),
     };
 
     if let Some(kco) = config_options_for_context(kc, cli.context) {
@@ -78,7 +82,10 @@ async fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
-fn config_options_for_context(kc: Kubeconfig, context: Option<String>) -> Option<KubeConfigOptions> {
+fn config_options_for_context(
+    kc: Kubeconfig,
+    context: Option<String>,
+) -> Option<KubeConfigOptions> {
     let sought_context = context.or(kc.current_context);
     if let Some(cc) = sought_context {
         for nc in kc.contexts {
