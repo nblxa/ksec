@@ -37,7 +37,7 @@ enum Shell {
     Zsh,
 }
 
-const KSEC: &'static str = "ksec";
+const KSEC: &str = "ksec";
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -82,13 +82,11 @@ fn print_secret(s: Secret, opt_key: &Option<String>) -> anyhow::Result<()> {
             } else {
                 Err(anyhow::anyhow!("No data found for key: {}", k))
             }
-        } else {
-            if let Some(v) = data.values().next() {
-                return print_value(v);
-            }
+        } else if let Some(v) = data.values().next() {
+            return print_value(v);
         }
     }
-    return Err(anyhow::anyhow!("No data found in secret"));
+    Err(anyhow::anyhow!("No data found in secret"))
 }
 
 fn config_options_for_context(
