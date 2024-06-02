@@ -1,6 +1,6 @@
 # ksec
 
-Kubernetes Secrets at the end of your fingertips.
+Kubernetes Secrets at your fingertips.
 
 ```console
 foo@bar:~$ ksec mysql password

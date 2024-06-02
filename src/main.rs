@@ -1,5 +1,5 @@
 use std::io;
-use std::path::Path;
+use std::path::PathBuf;
 
 use clap::{Command, CommandFactory, Parser};
 use clap_complete::generate;
@@ -7,9 +7,9 @@ use clap_complete::shells::{Bash, Zsh};
 use clap_derive::ValueEnum;
 use k8s_openapi::api::core::v1::Secret;
 use k8s_openapi::ByteString;
-use kube::api::Api;
-use kube::config::{KubeConfigOptions, Kubeconfig};
 use kube::{Client, Config};
+use kube::api::Api;
+use kube::config::{Kubeconfig, KubeConfigOptions};
 
 /// Quickly get the value of a Kubernetes Secret.
 #[derive(Parser)]
@@ -53,7 +53,7 @@ async fn main() -> anyhow::Result<()> {
     }
 
     let kc: Kubeconfig = match cli.kubeconfig {
-        Some(path) => Kubeconfig::read_from(Path::new(&path)).unwrap(),
+        Some(path) => Kubeconfig::read_from(expand_tilde(path.as_str())).unwrap(),
         None => Kubeconfig::from_env()
             .unwrap()
             .or_else(get_kubeconfig)
@@ -69,7 +69,7 @@ async fn main() -> anyhow::Result<()> {
         return match res {
             Ok(s) => print_secret(s, &cli.key),
             Err(e) => Err(anyhow::anyhow!(e.to_string())),
-        }
+        };
     }
     Ok(())
 }
@@ -81,7 +81,7 @@ fn print_secret(s: Secret, opt_key: &Option<String>) -> anyhow::Result<()> {
                 print_value(v)
             } else {
                 Err(anyhow::anyhow!("No data found for key: {}", k))
-            }
+            };
         } else if let Some(v) = data.values().next() {
             return print_value(v);
         }
@@ -117,4 +117,16 @@ fn print_value(bs: &ByteString) -> anyhow::Result<()> {
 
 fn get_kubeconfig() -> Option<Kubeconfig> {
     Some(Kubeconfig::read().unwrap())
+}
+
+fn expand_tilde(path: &str) -> PathBuf {
+    let pathbuf = PathBuf::from(path);
+    if pathbuf.starts_with("~") {
+        let home = dirs::home_dir().unwrap();
+        let pathbuf = pathbuf.strip_prefix("~").unwrap();
+        let abspath = home.join(pathbuf).to_str().unwrap().to_string();
+        PathBuf::from(abspath)
+    } else {
+        PathBuf::from(path)
+    }
 }
