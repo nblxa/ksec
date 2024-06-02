@@ -1,40 +1,54 @@
 use std::io;
+use std::io::BufWriter;
 use std::path::PathBuf;
+use std::string::ToString;
 
 use clap::{Command, CommandFactory, Parser};
 use clap_complete::generate;
 use clap_complete::shells::{Bash, Zsh};
 use clap_derive::ValueEnum;
-use k8s_openapi::api::core::v1::Secret;
+use k8s_openapi::api::core::v1::{Namespace, Secret};
 use k8s_openapi::ByteString;
 use kube::{Client, Config};
 use kube::api::Api;
 use kube::config::{Kubeconfig, KubeConfigOptions};
 
-/// Quickly get the value of a Kubernetes Secret.
+/// Kubernetes Secrets at your fingertips.
 #[derive(Parser)]
 #[clap(author, version, about, long_about = None)]
 struct Cli {
-    /// Kubeconfig
-    #[clap(long)]
+    /// Kubeconfig file
+    #[clap(long, value_hint = clap::ValueHint::FilePath)]
     kubeconfig: Option<String>,
-    /// Context
+    /// Kubectl context
     #[clap(short, long)]
     context: Option<String>,
     /// Namespace
     #[clap(short, long)]
     namespace: Option<String>,
+    /// Name of the secret
     secret: String,
+    /// Key in secret
     key: Option<String>,
     /// Generate a completion script
     #[clap(long)]
     completion: Option<Shell>,
+    #[clap(long, hide = true)]
+    completion_helper: Option<CompletionHelper>,
 }
 
-#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
+#[derive(Clone, ValueEnum)]
 enum Shell {
     Bash,
     Zsh,
+}
+
+#[derive(Clone, ValueEnum)]
+enum CompletionHelper {
+    Context,
+    Namespace,
+    Secret,
+    Key,
 }
 
 const KSEC: &str = "ksec";
@@ -44,21 +58,31 @@ async fn main() -> anyhow::Result<()> {
     let cli: Cli = Cli::parse();
 
     let mut cmd: Command = Cli::command();
+    if cli.completion_helper.is_some() {
+        return completion_handler(&cli).await;
+    }
+
     if let Some(comp) = cli.completion {
         match comp {
             Shell::Bash => generate(Bash, &mut cmd, KSEC, &mut io::stdout()),
-            Shell::Zsh => generate(Zsh, &mut cmd, KSEC, &mut io::stdout()),
+            Shell::Zsh => {
+                // use writer to write to string:
+                let mut bw = BufWriter::new(Vec::new());
+                generate(Zsh, &mut cmd, KSEC, &mut bw);
+                let mut s = String::from_utf8(bw.buffer().to_vec()).unwrap();
+                let zsh_include_sh = include_str!("zsh.include.sh");
+                s = s.replace("&& ret=0\n", zsh_include_sh)
+                    .replace(":CONTEXT: ", ":CONTEXT:->contexts ")
+                    .replace(":NAMESPACE: ", ":NAMESPACE:->namespaces ")
+                    .replace(":secret -- Name of the secret:", ":secret -- Name of the secret:->secrets")
+                    .replace("::key -- Key in secret:", "::key -- Key in secret:->keys");
+                print!("{}", s);
+            }
         }
         return Ok(());
     }
 
-    let kc: Kubeconfig = match cli.kubeconfig {
-        Some(path) => Kubeconfig::read_from(expand_tilde(path.as_str())).unwrap(),
-        None => Kubeconfig::from_env()
-            .unwrap()
-            .or_else(get_kubeconfig)
-            .unwrap(),
-    };
+    let kc: Kubeconfig = kubeconfig_from_cli(&cli);
 
     if let Some(kco) = config_options_for_context(kc, cli.context) {
         let config = Config::from_kubeconfig(&kco).await?;
@@ -128,5 +152,85 @@ fn expand_tilde(path: &str) -> PathBuf {
         PathBuf::from(abspath)
     } else {
         PathBuf::from(path)
+    }
+}
+
+async fn completion_handler(cli: &Cli) -> anyhow::Result<()> {
+    match cli.completion_helper {
+        Some(CompletionHelper::Context) => {
+            // get contexts from kubeconfig
+            let kc: Kubeconfig = kubeconfig_from_cli(cli);
+            let contexts: Vec<String> = kc.contexts.iter().map(|c| c.name.clone()).collect();
+            for c in contexts {
+                println!("{}", c);
+            }
+        }
+        Some(CompletionHelper::Namespace) => {
+            // get namespaces from cluster
+            let kc: Kubeconfig = kubeconfig_from_cli(cli);
+            if let Some((client, _)) = get_client_ns_from_kubeconfig(kc, cli).await? {
+                let namespaces: Api<Namespace> = Api::all(client);
+                namespaces.list(&Default::default())
+                    .await?
+                    .iter()
+                    .for_each(|n| {
+                        println!("{}", n.metadata.name.as_ref().unwrap());
+                    });
+            }
+        }
+        Some(CompletionHelper::Secret) => {
+            // get secrets from cluster
+            let kc: Kubeconfig = kubeconfig_from_cli(cli);
+            if let Some((client, ns)) = get_client_ns_from_kubeconfig(kc, cli).await? {
+                let secrets: Api<Secret> = Api::namespaced(client, ns.as_str());
+                secrets.list(&Default::default())
+                    .await?
+                    .iter()
+                    .for_each(|s| {
+                        println!("{}", s.metadata.name.as_ref().unwrap());
+                    });
+            }
+        }
+        Some(CompletionHelper::Key) => {
+            // get keys from secret
+            let kc: Kubeconfig = kubeconfig_from_cli(cli);
+            if let Some((client, ns)) = get_client_ns_from_kubeconfig(kc, cli).await? {
+                let secrets: Api<Secret> = Api::namespaced(client, ns.as_str());
+                let res = secrets.get(&cli.secret).await;
+                if let Ok(secret) = res {
+                    if let Some(data) = &secret.data {
+                        for k in data.keys() {
+                            println!("{}", k);
+                        }
+                    }
+                }
+            }
+        }
+        // default case:
+        _ => {}
+    }
+    Ok(())
+}
+
+fn kubeconfig_from_cli(cli: &Cli) -> Kubeconfig {
+    match &cli.kubeconfig {
+        Some(path) => Kubeconfig::read_from(expand_tilde(path.as_str())).unwrap(),
+        None => Kubeconfig::from_env()
+            .unwrap()
+            .or_else(get_kubeconfig)
+            .unwrap(),
+    }
+}
+
+async fn get_client_ns_from_kubeconfig(kc: Kubeconfig, cli: &Cli) -> anyhow::Result<Option<(Client, String)>> {
+    if let Some(kco) = config_options_for_context(kc, cli.context.clone()) {
+        let config = Config::from_kubeconfig(&kco).await.unwrap();
+        let client = Client::try_from(config).unwrap();
+        let ns = cli.namespace
+            .clone()
+            .unwrap_or(client.default_namespace().to_string());
+        Ok(Some((client, ns)))
+    } else {
+        Ok(None)
     }
 }
