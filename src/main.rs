@@ -1,3 +1,4 @@
+use std::fmt::Debug;
 use std::io;
 use std::io::BufWriter;
 use std::path::PathBuf;
@@ -8,10 +9,11 @@ use clap_complete::generate;
 use clap_complete::shells::{Bash, Zsh};
 use clap_derive::ValueEnum;
 use k8s_openapi::api::core::v1::{Namespace, Secret};
-use k8s_openapi::ByteString;
-use kube::{Client, Config};
+use k8s_openapi::serde::de::DeserializeOwned;
+use k8s_openapi::{ByteString, Resource};
 use kube::api::Api;
-use kube::config::{Kubeconfig, KubeConfigOptions};
+use kube::config::{KubeConfigOptions, Kubeconfig};
+use kube::{Client, Config};
 
 /// Kubernetes Secrets at your fingertips.
 #[derive(Parser)]
@@ -45,10 +47,10 @@ enum Shell {
 
 #[derive(Clone, ValueEnum)]
 enum CompletionHelper {
-    Context,
-    Namespace,
-    Secret,
-    Key,
+    Contexts,
+    Namespaces,
+    Secrets,
+    Keys,
 }
 
 const KSEC: &str = "ksec";
@@ -61,33 +63,13 @@ async fn main() -> anyhow::Result<()> {
     if cli.completion_helper.is_some() {
         return completion_handler(&cli).await;
     }
-
     if let Some(comp) = cli.completion {
-        match comp {
-            Shell::Bash => generate(Bash, &mut cmd, KSEC, &mut io::stdout()),
-            Shell::Zsh => {
-                // use writer to write to string:
-                let mut bw = BufWriter::new(Vec::new());
-                generate(Zsh, &mut cmd, KSEC, &mut bw);
-                let mut s = String::from_utf8(bw.buffer().to_vec()).unwrap();
-                let zsh_include_sh = include_str!("zsh.include.sh");
-                s = s.replace("&& ret=0\n", zsh_include_sh)
-                    .replace(":CONTEXT: ", ":CONTEXT:->contexts ")
-                    .replace(":NAMESPACE: ", ":NAMESPACE:->namespaces ")
-                    .replace(":secret -- Name of the secret:", ":secret -- Name of the secret:->secrets")
-                    .replace("::key -- Key in secret:", "::key -- Key in secret:->keys");
-                print!("{}", s);
-            }
-        }
-        return Ok(());
+        return get_completion_script(comp, &mut cmd);
     }
 
     let kc: Kubeconfig = kubeconfig_from_cli(&cli);
 
-    if let Some(kco) = config_options_for_context(kc, cli.context) {
-        let config = Config::from_kubeconfig(&kco).await?;
-        let ns = cli.namespace.unwrap_or(config.default_namespace.clone());
-        let client = Client::try_from(config)?;
+    if let Some((client, ns)) = get_client_ns_from_kubeconfig(kc, &cli).await? {
         let secrets: Api<Secret> = Api::namespaced(client, ns.as_str());
         let res = secrets.get(&cli.secret).await;
         return match res {
@@ -157,7 +139,7 @@ fn expand_tilde(path: &str) -> PathBuf {
 
 async fn completion_handler(cli: &Cli) -> anyhow::Result<()> {
     match cli.completion_helper {
-        Some(CompletionHelper::Context) => {
+        Some(CompletionHelper::Contexts) => {
             // get contexts from kubeconfig
             let kc: Kubeconfig = kubeconfig_from_cli(cli);
             let contexts: Vec<String> = kc.contexts.iter().map(|c| c.name.clone()).collect();
@@ -165,33 +147,29 @@ async fn completion_handler(cli: &Cli) -> anyhow::Result<()> {
                 println!("{}", c);
             }
         }
-        Some(CompletionHelper::Namespace) => {
+        Some(CompletionHelper::Namespaces) => {
             // get namespaces from cluster
             let kc: Kubeconfig = kubeconfig_from_cli(cli);
             if let Some((client, _)) = get_client_ns_from_kubeconfig(kc, cli).await? {
                 let namespaces: Api<Namespace> = Api::all(client);
-                namespaces.list(&Default::default())
-                    .await?
-                    .iter()
-                    .for_each(|n| {
-                        println!("{}", n.metadata.name.as_ref().unwrap());
-                    });
+                for_each_resource(namespaces, |n| {
+                    println!("{}", n.metadata.name.as_ref().unwrap());
+                })
+                .await?;
             }
         }
-        Some(CompletionHelper::Secret) => {
+        Some(CompletionHelper::Secrets) => {
             // get secrets from cluster
             let kc: Kubeconfig = kubeconfig_from_cli(cli);
             if let Some((client, ns)) = get_client_ns_from_kubeconfig(kc, cli).await? {
                 let secrets: Api<Secret> = Api::namespaced(client, ns.as_str());
-                secrets.list(&Default::default())
-                    .await?
-                    .iter()
-                    .for_each(|s| {
-                        println!("{}", s.metadata.name.as_ref().unwrap());
-                    });
+                for_each_resource(secrets, |s| {
+                    println!("{}", s.metadata.name.as_ref().unwrap());
+                })
+                .await?;
             }
         }
-        Some(CompletionHelper::Key) => {
+        Some(CompletionHelper::Keys) => {
             // get keys from secret
             let kc: Kubeconfig = kubeconfig_from_cli(cli);
             if let Some((client, ns)) = get_client_ns_from_kubeconfig(kc, cli).await? {
@@ -212,6 +190,18 @@ async fn completion_handler(cli: &Cli) -> anyhow::Result<()> {
     Ok(())
 }
 
+// Perform an action for each resource in an API
+async fn for_each_resource<T: Resource + Clone + DeserializeOwned + Debug>(
+    api: Api<T>,
+    process: impl Fn(&T),
+) -> anyhow::Result<()> {
+    api.list(&Default::default())
+        .await?
+        .iter()
+        .for_each(process);
+    Ok(())
+}
+
 fn kubeconfig_from_cli(cli: &Cli) -> Kubeconfig {
     match &cli.kubeconfig {
         Some(path) => Kubeconfig::read_from(expand_tilde(path.as_str())).unwrap(),
@@ -222,15 +212,51 @@ fn kubeconfig_from_cli(cli: &Cli) -> Kubeconfig {
     }
 }
 
-async fn get_client_ns_from_kubeconfig(kc: Kubeconfig, cli: &Cli) -> anyhow::Result<Option<(Client, String)>> {
+async fn get_client_ns_from_kubeconfig(
+    kc: Kubeconfig,
+    cli: &Cli,
+) -> anyhow::Result<Option<(Client, String)>> {
     if let Some(kco) = config_options_for_context(kc, cli.context.clone()) {
         let config = Config::from_kubeconfig(&kco).await.unwrap();
         let client = Client::try_from(config).unwrap();
-        let ns = cli.namespace
+        let ns = cli
+            .namespace
             .clone()
             .unwrap_or(client.default_namespace().to_string());
         Ok(Some((client, ns)))
     } else {
         Ok(None)
     }
+}
+
+fn get_completion_script(comp: Shell, cmd: &mut Command) -> anyhow::Result<()> {
+    match comp {
+        Shell::Bash => generate(Bash, cmd, KSEC, &mut io::stdout()),
+        Shell::Zsh => {
+            // use writer to write to string:
+            let mut bw = BufWriter::new(Vec::new());
+            generate(Zsh, cmd, KSEC, &mut bw);
+            let mut s = String::from_utf8(bw.buffer().to_vec()).unwrap();
+            let zsh_include_sh = String::from("&& ret=0\n")
+                + include_str!("zsh.include.sh")
+                    // remove lines with #trim or starting with #! from zsh script
+                    .lines()
+                    .filter(|l| !l.contains("#trim") && !l.starts_with("#!"))
+                    .collect::<Vec<&str>>()
+                    .join("\n")
+                    .as_str()
+                + "\n";
+            s = s
+                .replace("&& ret=0\n", zsh_include_sh.as_str())
+                .replace(":CONTEXT: ", ":CONTEXT:->contexts ")
+                .replace(":NAMESPACE: ", ":NAMESPACE:->namespaces ")
+                .replace(
+                    ":secret -- Name of the secret:",
+                    ":secret -- Name of the secret:->secrets",
+                )
+                .replace("::key -- Key in secret:", "::key -- Key in secret:->keys");
+            print!("{}", s);
+        }
+    }
+    Ok(())
 }
