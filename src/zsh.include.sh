@@ -16,7 +16,7 @@ fn() {#trim
   case "$state" in
     contexts)
       #shellcheck disable=SC2128 disable=SC2086 disable=SC2207
-      typeset -a contexts=($(ksec --completion-helper contexts x $params))
+      typeset -a contexts=($(ksec --completion-helper=contexts x $params))
       if [ ${#contexts[@]} -ne 0 ]; then
         _values 'contexts' "${contexts[@]}"
       else
@@ -25,7 +25,7 @@ fn() {#trim
       ;;
     namespaces)
       #shellcheck disable=SC2128 disable=SC2086 disable=SC2207
-      typeset -a namespaces=($(ksec --completion-helper namespaces x $params))
+      typeset -a namespaces=($(ksec --completion-helper=namespaces x $params))
       if [ ${#namespaces[@]} -ne 0 ]; then
         _values  'namespaces' "${namespaces[@]}"
       else
@@ -34,7 +34,7 @@ fn() {#trim
       ;;
     secrets)
       #shellcheck disable=SC2128 disable=SC2086 disable=SC2207
-      typeset -a secrets=($(ksec --completion-helper secrets x $params))
+      typeset -a secrets=($(ksec --completion-helper=secrets x $params))
       if [ ${#secrets[@]} -ne 0 ]; then
         _values 'secrets' "${secrets[@]}"
       else
@@ -43,7 +43,7 @@ fn() {#trim
       ;;
     keys)
       #shellcheck disable=SC2128 disable=SC2086 disable=SC2207
-      typeset -a keys=($(ksec --completion-helper keys $params))
+      typeset -a keys=($(ksec --completion-helper=keys $params))
       if [ ${#keys[@]} -ne 0 ]; then
         _values 'keys' "${keys[@]}"
       else
