@@ -3,7 +3,7 @@ on:
     types: [ created ]
 
 jobs:
-  release:
+  release-rust:
     name: release ${{ matrix.target }}
     runs-on: ubuntu-latest
     strategy:
@@ -14,8 +14,6 @@ jobs:
             archive: zip
           - target: x86_64-unknown-linux-musl
             archive: tar.gz
-          - target: aarch64-apple-darwin
-            archive: zip
     steps:
       - uses: actions/checkout@master
       - name: Compile and release
@@ -25,3 +23,14 @@ jobs:
         with:
           RUSTTARGET: ${{ matrix.target }}
           ARCHIVE_TYPES: ${{ matrix.archive }}
+
+  release-rust-mac:
+    name: release ${{ matrix.target }}
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@master
+      - name: Compile and release
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+          rustup update
+          cargo build --release
