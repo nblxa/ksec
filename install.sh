@@ -1,6 +1,6 @@
 #!/bin/sh
 
-set -eu
+set -eux #TODO remove -x
 
 _get_arch() {
   if [ "$1" = "x86_64" ]; then
