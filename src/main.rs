@@ -15,9 +15,11 @@ use kube::api::Api;
 use kube::config::{KubeConfigOptions, Kubeconfig};
 use kube::{Client, Config};
 
+const VERSION: &str = concat!("v", env!("CARGO_PKG_VERSION"));
+
 /// Kubernetes Secrets at your fingertips.
 #[derive(Parser)]
-#[clap(author, version, about, long_about = None)]
+#[clap(author, version = VERSION, about, long_about = None)]
 struct Cli {
     /// Kubeconfig file
     #[clap(long, value_hint = clap::ValueHint::FilePath)]
