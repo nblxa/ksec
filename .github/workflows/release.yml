@@ -55,3 +55,7 @@ jobs:
           zip: windows
           # (required) GitHub token for uploading assets to GitHub Releases.
           token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Install ksec
+        run: curl https://github.com/nblxa/ksec/raw/refs/heads/main/install.sh | sh
+      - name: Run ksec
+        run: ksec --help
