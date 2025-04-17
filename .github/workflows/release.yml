@@ -12,7 +12,23 @@ jobs:
   create-release:
     runs-on: ubuntu-latest
     steps:
+      - name: Get tag for crate version
+        id: tag_without_v
+        uses: devops-actions/action-get-tag@v1.0.3
+        with:
+          strip_v: true
       - uses: actions/checkout@v4
+      - name: Edit crate version
+        run: |
+          sed -i "s/^version = \"0.0.0-default-ksec-version\"/version = \"${{ steps.tag_without_v.outputs.tag }}\"/" Cargo.toml
+          sed -i "s/^version = \"0.0.0-default-ksec-version\"/version = \"${{ steps.tag_without_v.outputs.tag }}\"/" Cargo.lock
+      - uses: actions/cache/save@v4
+        with:
+          path: |
+            Cargo.toml
+            Cargo.lock
+          key: "${{ github.run_id }}-${{ github.run_attempt }}-cargo"
+          enableCrossOsArchive: true
       - uses: taiki-e/create-gh-release-action@v1
         with:
           # (optional) Path to changelog.
@@ -29,11 +45,19 @@ jobs:
             os: ubuntu-latest
           - target: aarch64-apple-darwin
             os: macos-latest
-          - target: x86_64-pc-windows-msvc
-            os: windows-latest
+          #- target: x86_64-pc-windows-msvc # TODO support windows & powershell
+          #  os: windows-latest
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/cache/restore@v4
+        with:
+          path: |
+            Cargo.toml
+            Cargo.lock
+          key: "${{ github.run_id }}-${{ github.run_attempt }}-cargo"
+          fail-on-cache-miss: true
+          enableCrossOsArchive: true
       - uses: taiki-e/upload-rust-binary-action@v1
         with:
           # (required) Comma-separated list of binary names (non-extension portion of filename) to build and upload.
@@ -55,3 +79,48 @@ jobs:
           zip: windows
           # (required) GitHub token for uploading assets to GitHub Releases.
           token: ${{ secrets.GITHUB_TOKEN }}
+
+  test-install:
+    needs: upload-assets
+    strategy:
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+          - target: aarch64-apple-darwin
+            os: macos-latest
+          #- target: x86_64-pc-windows-msvc # TODO support windows & powershell
+          #  os: windows-latest
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Get tag
+        id: tag
+        uses: devops-actions/action-get-tag@v1.0.3
+      - name: Install ksec from current tag
+        uses: nick-fields/retry@v3
+        env:
+          KSEC_VERSION: "${{ steps.tag.outputs.tag }}"
+        with:
+          timeout_minutes: 10
+          max_attempts: 3
+          command: curl -sSL https://github.com/${{ github.repository }}/raw/refs/tags/${{ steps.tag.outputs.tag }}/install.sh | sh
+      - name: Update PATH
+        run: echo "$HOME/.ksec/bin" >> $GITHUB_PATH
+      - name: Verify ksec (current version)
+        run: |
+          version=$(ksec --version)
+          echo "ksec --version: '$version'"
+          [ "$version" = 'ksec ${{ steps.tag.outputs.tag }}' ]
+      - name: Install ksec from latest release
+        run: |
+          rm -rf $HOME/.ksec/bin
+          curl -sSL https://github.com/${{ github.repository }}/raw/refs/tags/${{ steps.tag.outputs.tag }}/install.sh | sh
+      - name: Verify ksec (latest release)
+        id: latest_release
+        run: |
+          cicd_latest_rel="$(curl -Is -o /dev/null -w '%header{location}' "https://github.com/${{ github.repository }}/releases/latest")"
+          cicd_latest_rel="${cicd_latest_rel##*/v}"
+          version=$(ksec --version)
+          echo "ksec --version: '$version'"
+          echo "latest release: '$cicd_latest_rel'"
+          [ "$version" = "ksec $cicd_latest_rel" ]
