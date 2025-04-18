@@ -12,7 +12,21 @@ jobs:
   create-release:
     runs-on: ubuntu-latest
     steps:
+      - name: Get tag
+        id: tag
+        uses: devops-actions/action-get-tag@v1.0.3
+        with:
+          strip_v: true # Optional: Remove 'v' character from version
+          default: v0.0.0 # Optional: Default version when tag not found
       - uses: actions/checkout@v4
+      - uses: actions-rs/cargo@v1
+        with:
+          command: install
+          args: cargo-edit
+      - uses: actions-rs/cargo@v1
+        with:
+          command: set-version
+          args: ${{ steps.tag.outputs.tag }}
       - uses: taiki-e/create-gh-release-action@v1
         with:
           # (optional) Path to changelog.
@@ -73,5 +87,10 @@ jobs:
         run: echo "KSEC_VERSION=${GITHUB_REF#refs/*/}" >> $GITHUB_ENV
       - name: Install ksec
         run: curl -sSL https://github.com/nblxa/ksec/raw/refs/tags/${{ env.KSEC_VERSION }}/install.sh | sh
-      - name: Run ksec in login shell
-        run: bash -lc 'ksec --help'
+      - name: Update PATH
+        run: echo "$HOME/.ksec/bin" >> $GITHUB_PATH
+      - name: Verify ksec version
+        run: |
+          version=$(ksec --version)
+          echo "ksec --version: '$version'"
+          [ "$version" = "ksec $KSEC_VERSION" ]
