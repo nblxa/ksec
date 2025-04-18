@@ -1,7 +1,6 @@
 #!/bin/sh
 
 set -eu
-set -x #TODO remove debug code
 
 _get_arch() {
   if [ "$1" = "x86_64" ]; then
@@ -92,7 +91,6 @@ _ks_install() {
     PATH="$_ks_dir:$PATH"
     export PATH
   fi
-  echo "SHELL='${SHELL:-}', BASH_VERSINFO='${BASH_VERSINFO:-}', ZSH_VERSION='${ZSH_VERSION:-}'" # TODO remove debug code
   if [ -f "$HOME/.bashrc" ]; then
     if ! grep -q "export PATH=\"$_ks_dir:\$PATH\"" "$HOME/.bashrc"; then
       echo "export PATH=\"$_ks_dir:\$PATH\"" >> "$HOME/.bashrc"
