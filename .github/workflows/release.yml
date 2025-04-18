@@ -73,9 +73,5 @@ jobs:
         run: echo "KSEC_VERSION=${GITHUB_REF#refs/*/}" >> $GITHUB_ENV
       - name: Install ksec
         run: curl -sSL https://github.com/nblxa/ksec/raw/refs/tags/${{ env.KSEC_VERSION }}/install.sh | sh
-      - name: Show .bashrc
-        run: cat $HOME/.bashrc
-      - name: Run ksec
-        run: |
-          source $HOME/.bashrc
-          ksec --help
+      - name: Run ksec in login shell
+        run: bash -lc 'ksec --help'
