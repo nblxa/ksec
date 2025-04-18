@@ -40,7 +40,7 @@ _ks_install() {
   fi
   if [ -z "${_ks_arch:-}" ]; then
     _ks_uname_m="$(uname -m)"
-    _ks_arch="$(_get_arch "$_ks_uname_m" "amd64" "aarch64")"
+    _ks_arch="$(_get_arch "$_ks_uname_m" "x86_64" "aarch64")"
   fi
   if [ -z "${_ks_arch:-}" ]; then
     echo "KSEC_ARCH is not set and couldn't determine the architecture. Exiting..." >&2
@@ -62,9 +62,26 @@ _ks_install() {
   _ks_url="https://github.com/$_ks_acc/$_ks_repo/releases/download/$_ks_ver/$_ks_bin-$_ks_arch-$_ks_os.$_ks_ext"
   _ks_path="$_ks_dir/$_ks_bin.$_ks_ext"
   if command -v curl >/dev/null 2>&1; then
-    curl -sSL -o "$_ks_path" "$_ks_url"
+    curl -sSLf -o "$_ks_path" "$_ks_url"
   elif command -v wget >/dev/null 2>&1; then
-    wget --quiet --https-only -O "$_ks_path" "$_ks_url"
+    rc=0
+    wget --quiet --https-only -O "$_ks_path" "$_ks_url" || rc=$?
+    case $rc in
+      0)
+        ;;
+      8)
+        echo "Server issued an error. Exiting..." >&2
+        exit 1
+        ;;
+      4)
+        echo "Network failure. Exiting..." >&2
+        exit 1
+        ;;
+      *)
+        echo "wget error: $rc. Exiting..." >&2
+        exit 1
+        ;;
+    esac
   fi
   cd "$_ks_dir"
   tar -xzf "$_ks_bin.$_ks_ext"
@@ -75,7 +92,7 @@ _ks_install() {
     PATH="$_ks_dir:$PATH"
     export PATH
   fi
-  echo "SHELL='$SHELL', BASH_VERSINFO='${BASH_VERSINFO}', ZSH_VERSION='$ZSH_VERSION'" # TODO remove debug code
+  echo "SHELL='${SHELL:-}', BASH_VERSINFO='${BASH_VERSINFO:-}', ZSH_VERSION='${ZSH_VERSION:-}'" # TODO remove debug code
   if [ -f "$HOME/.bashrc" ]; then
     if ! grep -q "export PATH=\"$_ks_dir:\$PATH\"" "$HOME/.bashrc"; then
       echo "export PATH=\"$_ks_dir:\$PATH\"" >> "$HOME/.bashrc"
