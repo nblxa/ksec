@@ -1,6 +1,7 @@
 #!/bin/sh
 
-set -eux #TODO remove -x
+set -eu
+set -x #TODO remove debug code
 
 _get_arch() {
   if [ "$1" = "x86_64" ]; then
@@ -70,10 +71,11 @@ _ks_install() {
   chmod +x "$_ks_bin"
   rm -rf "$_ks_bin.$_ks_ext"
   # if PATH doesn't contain $_ks_dir, add it
-  if ! echo "$PATH" | grep -q "$_ks_dir"; then
+  if ! echo ":$PATH:" | grep -q ":$_ks_dir:"; then
     PATH="$_ks_dir:$PATH"
     export PATH
   fi
+  echo "SHELL='$SHELL', BASH_VERSINFO='${BASH_VERSINFO}', ZSH_VERSION='$ZSH_VERSION'" # TODO remove debug code
   if [ -f "$HOME/.bashrc" ]; then
     if ! grep -q "export PATH=\"$_ks_dir:\$PATH\"" "$HOME/.bashrc"; then
       echo "export PATH=\"$_ks_dir:\$PATH\"" >> "$HOME/.bashrc"
