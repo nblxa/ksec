@@ -55,9 +55,27 @@ jobs:
           zip: windows
           # (required) GitHub token for uploading assets to GitHub Releases.
           token: ${{ secrets.GITHUB_TOKEN }}
+
+  test-install:
+    needs: upload-assets
+    strategy:
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+          - target: aarch64-apple-darwin
+            os: macos-latest
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
+    runs-on: ${{ matrix.os }}
+    steps:
       - name: Set env
         run: echo "KSEC_VERSION=${GITHUB_REF#refs/*/}" >> $GITHUB_ENV
       - name: Install ksec
         run: curl -sSL https://github.com/nblxa/ksec/raw/refs/tags/${{ env.KSEC_VERSION }}/install.sh | sh
+      - name: Show .bashrc
+        run: cat $HOME/.bashrc
       - name: Run ksec
-        run: bash -c 'ksec --help'
+        run: |
+          source $HOME/.bashrc
+          ksec --help
