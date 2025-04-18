@@ -17,7 +17,7 @@ _ks_install() {
   _ks_acc="nblxa"
   _ks_repo="ksec"
   _ks_bin="ksec"
-  _ks_ver="${KSEC_VERSION:-v0.1.0}"
+  _ks_ver="${KSEC_VERSION:-}"
   _ks_ext="${KSEC_EXT:-}"
   _ks_arch="${KSEC_ARCH:-}"
   _ks_os="${KSEC_OS:-}"
@@ -86,21 +86,9 @@ _ks_install() {
   tar -xzf "$_ks_bin.$_ks_ext"
   chmod +x "$_ks_bin"
   rm -rf "$_ks_bin.$_ks_ext"
-  # if PATH doesn't contain $_ks_dir, add it
-  if ! echo ":$PATH:" | grep -q ":$_ks_dir:"; then
-    PATH="$_ks_dir:$PATH"
-    export PATH
-  fi
-  if [ -f "$HOME/.bashrc" ]; then
-    if ! grep -q "export PATH=\"$_ks_dir:\$PATH\"" "$HOME/.bashrc"; then
-      echo "export PATH=\"$_ks_dir:\$PATH\"" >> "$HOME/.bashrc"
-    fi
-  fi
-  if [ -f "$HOME/.zshrc" ]; then
-    if ! grep -q "export PATH=\"$_ks_dir:\$PATH\"" "$HOME/.zshrc"; then
-      echo "export PATH=\"$_ks_dir:\$PATH\"" >> "$HOME/.zshrc"
-    fi
-  fi
   echo "ksec installed successfully."
+  echo "Add ksec to your path with:"
+  echo
+  echo "  export PATH=\$HOME/.$_ks_bin/bin:\$PATH"
 }
 _ks_install

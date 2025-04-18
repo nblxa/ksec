@@ -13,6 +13,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions-rs/cargo@v1
+        with:
+          command: install cargo-edit
+      - uses: actions-rs/cargo@v1
+        with:
+          command: set-version "${GITHUB_REF#refs/*/}"
       - uses: taiki-e/create-gh-release-action@v1
         with:
           # (optional) Path to changelog.
@@ -73,5 +79,10 @@ jobs:
         run: echo "KSEC_VERSION=${GITHUB_REF#refs/*/}" >> $GITHUB_ENV
       - name: Install ksec
         run: curl -sSL https://github.com/nblxa/ksec/raw/refs/tags/${{ env.KSEC_VERSION }}/install.sh | sh
-      - name: Run ksec in login shell
-        run: bash -lc 'ksec --help'
+      - name: Update PATH
+        run: echo "$HOME/.ksec/bin" >> $GITHUB_PATH
+      - name: Verify ksec version
+        run: |
+          version=$(ksec --version)
+          echo "ksec --version: '$version'"
+          [ "$version" = "ksec $KSEC_VERSION" ]
