@@ -60,4 +60,4 @@ jobs:
       - name: Install ksec
         run: curl -sSL https://github.com/nblxa/ksec/raw/refs/tags/${{ env.KSEC_VERSION }}/install.sh | sh
       - name: Run ksec
-        run: ksec --help
+        run: bash -c 'ksec --help'
