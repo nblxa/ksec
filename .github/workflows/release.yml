@@ -30,8 +30,11 @@ jobs:
           args: ${{ steps.tag.outputs.tag }}
       - uses: actions/cache/save@v4
         with:
-          path: "cargo.*"
+          path: |
+            Cargo.toml
+            Cargo.lock
           key: "${{ env.GITHUB_RUN_ID }}-${{ env.GITHUB_RUN_ATTEMPT }}-cargo"
+          enableCrossOsArchive: true
       - uses: taiki-e/create-gh-release-action@v1
         with:
           # (optional) Path to changelog.
