@@ -17,7 +17,7 @@ _ks_install() {
   _ks_acc="nblxa"
   _ks_repo="ksec"
   _ks_bin="ksec"
-  _ks_ver="${KSEC_VERSION:-}"
+  _ks_ver="${KSEC_VERSION:-}" # including the initial "v"
   _ks_ext="${KSEC_EXT:-}"
   _ks_arch="${KSEC_ARCH:-}"
   _ks_os="${KSEC_OS:-}"

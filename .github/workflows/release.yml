@@ -15,8 +15,6 @@ jobs:
       - name: Get tag
         id: tag
         uses: devops-actions/action-get-tag@v1.0.3
-        with:
-          strip_v: true
       - uses: actions/checkout@v4
       - name: Edit crate version
         run: |
@@ -89,17 +87,21 @@ jobs:
             os: ubuntu-latest
           - target: aarch64-apple-darwin
             os: macos-latest
-          - target: x86_64-pc-windows-msvc
-            os: windows-latest
+          #- target: x86_64-pc-windows-msvc # TODO support windows & powershell
+          #  os: windows-latest
     runs-on: ${{ matrix.os }}
     steps:
       - name: Get tag
         id: tag
         uses: devops-actions/action-get-tag@v1.0.3
-        with:
-          strip_v: true
       - name: Install ksec
-        run: curl -sSL https://github.com/nblxa/ksec/raw/refs/tags/v${{ steps.tag.outputs.tag }}/install.sh | sh
+        uses: nick-fields/retry@v3
+        env: 
+          KSEC_VERSION: "${{ steps.tag.outputs.tag }}"
+        with:
+          timeout_minutes: 10
+          max_attempts: 3
+          command: : curl -sSL https://github.com/nblxa/ksec/raw/refs/tags/${{ steps.tag.outputs.tag }}/install.sh | sh
       - name: Update PATH
         run: echo "$HOME/.ksec/bin" >> $GITHUB_PATH
       - name: Verify ksec version

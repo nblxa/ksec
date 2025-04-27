@@ -15,7 +15,7 @@ use kube::api::Api;
 use kube::config::{KubeConfigOptions, Kubeconfig};
 use kube::{Client, Config};
 
-const VERSION: &str = env!("CARGO_PKG_VERSION");
+const VERSION: &str = concat!("v", env!("CARGO_PKG_VERSION"));
 
 /// Kubernetes Secrets at your fingertips.
 #[derive(Parser)]
