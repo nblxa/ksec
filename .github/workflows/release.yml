@@ -33,7 +33,7 @@ jobs:
           path: |
             Cargo.toml
             Cargo.lock
-          key: "${{ env.GITHUB_RUN_ID }}-${{ env.GITHUB_RUN_ATTEMPT }}-cargo"
+          key: "${{ github.run_id }}-${{ github.run_attempt }}-cargo"
           enableCrossOsArchive: true
       - uses: taiki-e/create-gh-release-action@v1
         with:
@@ -59,7 +59,7 @@ jobs:
       - uses: actions/cache/restore@v4
         with:
           path: "cargo.*"
-          key: "${{ env.GITHUB_RUN_ID }}-${{ env.GITHUB_RUN_ATTEMPT }}-cargo"
+          key: "${{ github.run_id }}-${{ github.run_attempt }}-cargo"
       - uses: taiki-e/upload-rust-binary-action@v1
         with:
           # (required) Comma-separated list of binary names (non-extension portion of filename) to build and upload.
