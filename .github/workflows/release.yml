@@ -96,12 +96,12 @@ jobs:
         uses: devops-actions/action-get-tag@v1.0.3
       - name: Install ksec
         uses: nick-fields/retry@v3
-        env: 
+        env:
           KSEC_VERSION: "${{ steps.tag.outputs.tag }}"
         with:
           timeout_minutes: 10
           max_attempts: 3
-          command: : curl -sSL https://github.com/nblxa/ksec/raw/refs/tags/${{ steps.tag.outputs.tag }}/install.sh | sh
+          command: curl -sSL https://github.com/nblxa/ksec/raw/refs/tags/${{ steps.tag.outputs.tag }}/install.sh | sh
       - name: Update PATH
         run: echo "$HOME/.ksec/bin" >> $GITHUB_PATH
       - name: Verify ksec version
