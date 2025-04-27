@@ -15,14 +15,11 @@ use kube::api::Api;
 use kube::config::{KubeConfigOptions, Kubeconfig};
 use kube::{Client, Config};
 
-// Include the generated-file as a separate module
-pub mod built_info {
-    include!(concat!(env!("OUT_DIR"), "/built.rs"));
-}
+const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// Kubernetes Secrets at your fingertips.
 #[derive(Parser)]
-#[clap(author, version = built_info::PKG_VERSION, about, long_about = None)]
+#[clap(author, version = VERSION, about, long_about = None)]
 struct Cli {
     /// Kubeconfig file
     #[clap(long, value_hint = clap::ValueHint::FilePath)]

@@ -16,8 +16,8 @@ jobs:
         id: tag
         uses: devops-actions/action-get-tag@v1.0.3
         with:
-          strip_v: true # Optional: Remove 'v' character from version
-          default: v0.0.0 # Optional: Default version when tag not found
+          strip_v: false
+          default: v0.0.0
       - uses: actions/checkout@v4
       - uses: actions-rs/cargo@v1
         with:
@@ -27,6 +27,10 @@ jobs:
         with:
           command: set-version
           args: ${{ steps.tag.outputs.tag }}
+      - uses: actions/cache/save@v4
+        with:
+          path: "cargo.*"
+          key: "${{ GITHUB_RUN_ID }}-${{ GITHUB_RUN_ATTEMPT }}-cargo"
       - uses: taiki-e/create-gh-release-action@v1
         with:
           # (optional) Path to changelog.
@@ -48,6 +52,10 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/cache/restore@v4
+        with:
+          path: "cargo.*"
+          key: "${{ GITHUB_RUN_ID }}-${{ GITHUB_RUN_ATTEMPT }}-cargo"
       - uses: taiki-e/upload-rust-binary-action@v1
         with:
           # (required) Comma-separated list of binary names (non-extension portion of filename) to build and upload.
