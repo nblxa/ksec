@@ -30,7 +30,7 @@ jobs:
       - uses: actions/cache/save@v4
         with:
           path: "cargo.*"
-          key: "${{ GITHUB_RUN_ID }}-${{ GITHUB_RUN_ATTEMPT }}-cargo"
+          key: "${{ env.GITHUB_RUN_ID }}-${{ env.GITHUB_RUN_ATTEMPT }}-cargo"
       - uses: taiki-e/create-gh-release-action@v1
         with:
           # (optional) Path to changelog.
@@ -55,7 +55,7 @@ jobs:
       - uses: actions/cache/restore@v4
         with:
           path: "cargo.*"
-          key: "${{ GITHUB_RUN_ID }}-${{ GITHUB_RUN_ATTEMPT }}-cargo"
+          key: "${{ env.GITHUB_RUN_ID }}-${{ env.GITHUB_RUN_ATTEMPT }}-cargo"
       - uses: taiki-e/upload-rust-binary-action@v1
         with:
           # (required) Comma-separated list of binary names (non-extension portion of filename) to build and upload.
