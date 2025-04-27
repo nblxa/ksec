@@ -16,14 +16,15 @@ jobs:
         id: tag
         uses: devops-actions/action-get-tag@v1.0.3
         with:
-          strip_v: false
-          default: v0.0.0
+          strip_v: true
       - uses: actions/checkout@v4
       - uses: actions-rs/cargo@v1
+        name: Install cargo-edit
         with:
           command: install
           args: cargo-edit
       - uses: actions-rs/cargo@v1
+        name: "Set crate version to ${{ steps.tag.outputs.tag }}"
         with:
           command: set-version
           args: ${{ steps.tag.outputs.tag }}
@@ -91,14 +92,12 @@ jobs:
             os: windows-latest
     runs-on: ${{ matrix.os }}
     steps:
-      - name: Set env
-        run: echo "KSEC_VERSION=${GITHUB_REF#refs/*/}" >> $GITHUB_ENV
       - name: Install ksec
-        run: curl -sSL https://github.com/nblxa/ksec/raw/refs/tags/${{ env.KSEC_VERSION }}/install.sh | sh
+        run: curl -sSL https://github.com/nblxa/ksec/raw/refs/tags/v${{ steps.tag.outputs.tag }}/install.sh | sh
       - name: Update PATH
         run: echo "$HOME/.ksec/bin" >> $GITHUB_PATH
       - name: Verify ksec version
         run: |
           version=$(ksec --version)
           echo "ksec --version: '$version'"
-          [ "$version" = "ksec $KSEC_VERSION" ]
+          [ "$version" = 'ksec ${{ steps.tag.outputs.tag }}' ]
