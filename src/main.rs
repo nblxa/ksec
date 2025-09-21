@@ -1,5 +1,4 @@
 use std::fmt::Debug;
-use std::io;
 use std::io::BufWriter;
 use std::path::PathBuf;
 use std::string::ToString;
@@ -67,11 +66,14 @@ async fn main() -> anyhow::Result<()> {
         return get_completion_script(comp, &mut cmd);
     }
 
+    // Check if secret is provided when not using completion features
+    let secret_name = &cli.secret;
+
     let kc: Kubeconfig = kubeconfig_from_cli(&cli);
 
     if let Some((client, ns)) = get_client_ns_from_kubeconfig(kc, &cli).await? {
         let secrets: Api<Secret> = Api::namespaced(client, ns.as_str());
-        let res = secrets.get(&cli.secret).await;
+        let res = secrets.get(secret_name).await;
         return match res {
             Ok(s) => print_secret(s, &cli.key),
             Err(e) => Err(anyhow::anyhow!(e.to_string())),
@@ -231,7 +233,33 @@ async fn get_client_ns_from_kubeconfig(
 
 fn get_completion_script(comp: Shell, cmd: &mut Command) -> anyhow::Result<()> {
     match comp {
-        Shell::Bash => generate(Bash, cmd, KSEC, &mut io::stdout()),
+        Shell::Bash => {
+            // Generate base bash completion script
+            let mut bw = BufWriter::new(Vec::new());
+            generate(Bash, cmd, KSEC, &mut bw);
+            let mut s = String::from_utf8(bw.buffer().to_vec()).unwrap();
+
+            // Include smart completion logic
+            let bash_include_sh = include_str!("bash.include.sh")
+                .lines()
+                .filter(|l| !l.starts_with("#!"))
+                .collect::<Vec<&str>>()
+                .join("\n");
+
+            // Insert smart completion function before the main _ksec function
+            let insertion_point = "_ksec() {";
+            if let Some(pos) = s.find(insertion_point) {
+                s.insert_str(pos, &format!("{}\n\n", bash_include_sh));
+            }
+
+            // Replace the default completion logic with smart completion
+            s = s.replace(
+                "COMPREPLY=( $(compgen -W \"${opts}\" -- \"${cur}\") )\n            return 0",
+                "_ksec_smart_completion\n            return 0",
+            );
+
+            print!("{}", s);
+        }
         Shell::Zsh => {
             // use writer to write to string:
             let mut bw = BufWriter::new(Vec::new());
