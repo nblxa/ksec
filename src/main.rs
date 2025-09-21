@@ -107,7 +107,7 @@ fn config_options_for_context(
                 return Some(KubeConfigOptions {
                     context: Some(nc.name),
                     cluster: Some(cont.cluster),
-                    user: Some(cont.user),
+                    user: cont.user,
                 });
             }
         }
